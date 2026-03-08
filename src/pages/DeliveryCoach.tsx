@@ -1,8 +1,10 @@
 import { useState } from "react";
-import { Volume2, Mic, Play, CheckCircle2 } from "lucide-react";
+import { Mic, Square, Play, CheckCircle2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { useAudioRecorder } from "@/hooks/useAudioRecorder";
+import { toast } from "@/components/ui/sonner";
 
 const exercises = [
   {
@@ -50,9 +52,40 @@ const exercises = [
 export default function DeliveryCoachPage() {
   const [selectedExercise, setSelectedExercise] = useState<typeof exercises[0] | null>(null);
   const [completed, setCompleted] = useState<Set<number>>(new Set());
+  const [audioUrl, setAudioUrl] = useState<string | null>(null);
+  const { isRecording, startRecording, stopRecording, error: recorderError } = useAudioRecorder();
+
+  if (recorderError) {
+    toast.error(recorderError);
+  }
+
+  const handleRecord = async () => {
+    setAudioUrl(null);
+    await startRecording();
+  };
+
+  const handleStop = async () => {
+    const result = await stopRecording();
+    if (result?.audioUrl) {
+      setAudioUrl(result.audioUrl);
+    }
+    if (result?.transcript) {
+      toast.success("Recording captured successfully!");
+    } else {
+      toast.info("Recording saved. No speech detected by browser transcription.");
+    }
+  };
 
   const handleComplete = (id: number) => {
+    if (audioUrl) URL.revokeObjectURL(audioUrl);
+    setAudioUrl(null);
     setCompleted((prev) => new Set([...prev, id]));
+    setSelectedExercise(null);
+  };
+
+  const handleClose = () => {
+    if (audioUrl) URL.revokeObjectURL(audioUrl);
+    setAudioUrl(null);
     setSelectedExercise(null);
   };
 
@@ -107,7 +140,7 @@ export default function DeliveryCoachPage() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm"
-            onClick={() => setSelectedExercise(null)}
+            onClick={handleClose}
           >
             <motion.div
               initial={{ scale: 0.95, opacity: 0 }}
@@ -127,14 +160,44 @@ export default function DeliveryCoachPage() {
               </div>
 
               <div className="flex flex-col items-center gap-4">
-                <button className="w-16 h-16 rounded-full bg-primary flex items-center justify-center text-primary-foreground hover:scale-105 transition-transform">
-                  <Mic className="w-7 h-7" />
-                </button>
-                <p className="text-xs text-muted-foreground">Tap to record your attempt</p>
+                {!isRecording ? (
+                  <button
+                    onClick={handleRecord}
+                    className="w-16 h-16 rounded-full bg-primary flex items-center justify-center text-primary-foreground hover:scale-105 transition-transform"
+                  >
+                    <Mic className="w-7 h-7" />
+                  </button>
+                ) : (
+                  <div className="relative">
+                    <button
+                      onClick={handleStop}
+                      className="relative z-10 w-16 h-16 rounded-full bg-destructive flex items-center justify-center text-destructive-foreground hover:scale-105 transition-transform"
+                    >
+                      <Square className="w-6 h-6" />
+                    </button>
+                    <div className="absolute inset-0 rounded-full bg-destructive/30 animate-pulse" />
+                  </div>
+                )}
+                <p className="text-xs text-muted-foreground">
+                  {isRecording ? (
+                    <span className="flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-destructive animate-pulse" />
+                      Recording... tap to stop
+                    </span>
+                  ) : "Tap to record your attempt"}
+                </p>
               </div>
 
+              {/* Audio Playback */}
+              {audioUrl && !isRecording && (
+                <div className="space-y-2">
+                  <p className="text-xs text-muted-foreground">Your Recording</p>
+                  <audio controls src={audioUrl} className="w-full" />
+                </div>
+              )}
+
               <div className="flex gap-3 justify-end">
-                <Button variant="outline" onClick={() => setSelectedExercise(null)}>Close</Button>
+                <Button variant="outline" onClick={handleClose}>Close</Button>
                 <Button onClick={() => handleComplete(selectedExercise.id)} className="gap-2">
                   <CheckCircle2 className="w-4 h-4" /> Mark Complete
                 </Button>
