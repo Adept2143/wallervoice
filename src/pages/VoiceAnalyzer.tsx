@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Mic, Square, RotateCcw } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
@@ -29,6 +29,9 @@ type RecordingState = "idle" | "recording" | "analyzing" | "results";
 export default function VoiceAnalyzerPage() {
   const [state, setState] = useState<RecordingState>("idle");
   const [analysis, setAnalysis] = useState<VoiceAnalysis | null>(null);
+  const [audioUrl, setAudioUrl] = useState<string | null>(null);
+  const [recordingTime, setRecordingTime] = useState(0);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const { startRecording, stopRecording, error: recorderError } = useAudioRecorder();
 
   useEffect(() => {
@@ -38,7 +41,27 @@ export default function VoiceAnalyzerPage() {
     }
   }, [recorderError]);
 
+  // Recording timer
+  useEffect(() => {
+    if (state === "recording") {
+      setRecordingTime(0);
+      timerRef.current = setInterval(() => setRecordingTime((t) => t + 1), 1000);
+    } else {
+      if (timerRef.current) clearInterval(timerRef.current);
+    }
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+    };
+  }, [state]);
+
+  const formatTime = (seconds: number) => {
+    const m = Math.floor(seconds / 60).toString().padStart(2, "0");
+    const s = (seconds % 60).toString().padStart(2, "0");
+    return `${m}:${s}`;
+  };
+
   const handleRecord = async () => {
+    setAudioUrl(null);
     await startRecording();
     setState("recording");
   };
@@ -47,9 +70,13 @@ export default function VoiceAnalyzerPage() {
     setState("analyzing");
     const result = await stopRecording();
 
+    if (result?.audioUrl) {
+      setAudioUrl(result.audioUrl);
+    }
+
     if (!result || !result.transcript.trim()) {
       toast.error("Could not detect any speech. Please speak clearly and try again.");
-      setState("idle");
+      setState(result?.audioUrl ? "results" : "idle");
       return;
     }
 
@@ -66,13 +93,16 @@ export default function VoiceAnalyzerPage() {
     } catch (err) {
       console.error("Analysis error:", err);
       toast.error(err instanceof Error ? err.message : "Failed to analyze voice.");
-      setState("idle");
+      setState(audioUrl ? "results" : "idle");
     }
   };
 
   const handleReset = () => {
+    if (audioUrl) URL.revokeObjectURL(audioUrl);
     setState("idle");
     setAnalysis(null);
+    setAudioUrl(null);
+    setRecordingTime(0);
   };
 
   return (
@@ -100,7 +130,11 @@ export default function VoiceAnalyzerPage() {
 
           {state === "recording" && (
             <motion.div key="recording" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex flex-col items-center gap-4">
-              <p className="text-primary text-sm font-medium">Recording... Speak now</p>
+              <div className="flex items-center gap-2">
+                <span className="w-3 h-3 rounded-full bg-destructive animate-pulse" />
+                <p className="text-destructive text-sm font-medium">Recording...</p>
+                <span className="text-muted-foreground text-sm font-mono">{formatTime(recordingTime)}</span>
+              </div>
               <div className="relative">
                 <button
                   onClick={handleStop}
@@ -121,6 +155,14 @@ export default function VoiceAnalyzerPage() {
           )}
         </AnimatePresence>
       </div>
+
+      {/* Audio Playback */}
+      {audioUrl && (state === "results" || state === "idle") && (
+        <div className="glass-card p-6 space-y-3">
+          <h3 className="text-sm font-medium text-muted-foreground">Your Recording</h3>
+          <audio controls src={audioUrl} className="w-full" />
+        </div>
+      )}
 
       <AnimatePresence>
         {state === "results" && analysis && (
