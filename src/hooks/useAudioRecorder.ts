@@ -35,13 +35,11 @@ export function useAudioRecorder(): UseAudioRecorderReturn {
         recognition.lang = "en-US";
 
         recognition.onresult = (event: any) => {
-          let text = "";
-          for (let i = 0; i < event.results.length; i++) {
+          for (let i = event.resultIndex; i < event.results.length; i++) {
             if (event.results[i].isFinal) {
-              text += event.results[i][0].transcript + " ";
+              transcriptRef.current += event.results[i][0].transcript + " ";
             }
           }
-          transcriptRef.current = text.trim();
         };
 
         recognition.onerror = (event: any) => {
