@@ -1,9 +1,12 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { BookOpen, Mic, Square, ChevronRight, RefreshCw } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { ScoreRing } from "@/components/ScoreRing";
 import { MetricBar } from "@/components/MetricBar";
+import { useAudioRecorder } from "@/hooks/useAudioRecorder";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "@/components/ui/sonner";
 
 const prompts = [
   { id: 1, text: "Tell a funny story from your day.", category: "Humor" },
@@ -13,33 +16,97 @@ const prompts = [
   { id: 5, text: "Describe your favorite childhood memory.", category: "Nostalgia" },
 ];
 
-const mockFeedback = {
-  score: 68,
-  structure: 72,
-  engagement: 65,
-  emotion: 60,
-  clarity: 75,
-  feedback: [
-    "Your story has a strong beginning but the ending could be more impactful.",
-    "Try adding more sensory details to help listeners visualize the scene.",
-    "Great use of pacing in the middle section — keep it up!",
-    "Consider adding a clear takeaway or lesson at the end.",
-  ],
-};
+interface StoryFeedback {
+  score: number;
+  structure: number;
+  engagement: number;
+  emotion: number;
+  clarity: number;
+  feedback: string[];
+}
 
-type PageState = "prompts" | "recording" | "feedback";
+type PageState = "prompts" | "recording" | "analyzing" | "feedback";
 
 export default function StorytellingPage() {
   const [state, setState] = useState<PageState>("prompts");
   const [selectedPrompt, setSelectedPrompt] = useState<typeof prompts[0] | null>(null);
+  const [feedbackData, setFeedbackData] = useState<StoryFeedback | null>(null);
+  const [audioUrl, setAudioUrl] = useState<string | null>(null);
+  const [recordingTime, setRecordingTime] = useState(0);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const { isRecording, startRecording, stopRecording, error: recorderError } = useAudioRecorder();
+
+  useEffect(() => {
+    if (recorderError) {
+      toast.error(recorderError);
+      setState(selectedPrompt ? "recording" : "prompts");
+    }
+  }, [recorderError]);
+
+  useEffect(() => {
+    if (isRecording) {
+      setRecordingTime(0);
+      timerRef.current = setInterval(() => setRecordingTime((t) => t + 1), 1000);
+    } else {
+      if (timerRef.current) clearInterval(timerRef.current);
+    }
+    return () => { if (timerRef.current) clearInterval(timerRef.current); };
+  }, [isRecording]);
+
+  const formatTime = (seconds: number) => {
+    const m = Math.floor(seconds / 60).toString().padStart(2, "0");
+    const s = (seconds % 60).toString().padStart(2, "0");
+    return `${m}:${s}`;
+  };
 
   const handleSelectPrompt = (prompt: typeof prompts[0]) => {
     setSelectedPrompt(prompt);
+    setAudioUrl(null);
+    setFeedbackData(null);
     setState("recording");
   };
 
-  const handleFinish = () => {
-    setTimeout(() => setState("feedback"), 1500);
+  const handleRecord = async () => {
+    setAudioUrl(null);
+    await startRecording();
+  };
+
+  const handleStop = async () => {
+    setState("analyzing");
+    const result = await stopRecording();
+
+    if (result?.audioUrl) {
+      setAudioUrl(result.audioUrl);
+    }
+
+    if (!result || !result.transcript.trim()) {
+      toast.error("Could not detect any speech. Please speak clearly and try again.");
+      setState("recording");
+      return;
+    }
+
+    try {
+      const { data, error } = await supabase.functions.invoke("analyze-voice", {
+        body: { transcript: result.transcript, durationSeconds: result.durationSeconds },
+      });
+
+      if (error) throw new Error(error.message || "Analysis failed");
+      if (data?.error) throw new Error(data.error);
+
+      setFeedbackData({
+        score: data.score ?? 0,
+        structure: data.clarity ?? 0,
+        engagement: data.confidence ?? 0,
+        emotion: data.vocalVariety ?? 0,
+        clarity: data.clarity ?? 0,
+        feedback: data.feedback ?? [],
+      });
+      setState("feedback");
+    } catch (err) {
+      console.error("Analysis error:", err);
+      toast.error(err instanceof Error ? err.message : "Failed to analyze story.");
+      setState("recording");
+    }
   };
 
   return (
@@ -75,38 +142,71 @@ export default function StorytellingPage() {
           <motion.div key="recording" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="glass-card p-8 flex flex-col items-center gap-6">
             <span className="px-3 py-1 rounded-full bg-primary/10 text-primary text-xs font-medium">{selectedPrompt?.category}</span>
             <p className="text-xl font-display font-semibold text-foreground text-center max-w-md">"{selectedPrompt?.text}"</p>
-            <p className="text-muted-foreground text-sm">Record your story when ready</p>
-            <div className="flex gap-4">
-              <Button variant="outline" onClick={() => setState("prompts")}>Back</Button>
-              <button
-                onClick={handleFinish}
-                className="w-16 h-16 rounded-full bg-primary flex items-center justify-center text-primary-foreground hover:scale-105 transition-transform"
-              >
-                <Mic className="w-7 h-7" />
-              </button>
-            </div>
+
+            {isRecording ? (
+              <>
+                <div className="flex items-center gap-2">
+                  <span className="w-3 h-3 rounded-full bg-destructive animate-pulse" />
+                  <p className="text-destructive text-sm font-medium">Recording...</p>
+                  <span className="text-muted-foreground text-sm font-mono">{formatTime(recordingTime)}</span>
+                </div>
+                <button
+                  onClick={handleStop}
+                  className="w-16 h-16 rounded-full bg-destructive flex items-center justify-center text-destructive-foreground hover:scale-105 transition-transform"
+                >
+                  <Square className="w-6 h-6" />
+                </button>
+              </>
+            ) : (
+              <>
+                <p className="text-muted-foreground text-sm">Tap the mic to start recording your story</p>
+                <div className="flex gap-4">
+                  <Button variant="outline" onClick={() => setState("prompts")}>Back</Button>
+                  <button
+                    onClick={handleRecord}
+                    className="w-16 h-16 rounded-full bg-primary flex items-center justify-center text-primary-foreground hover:scale-105 transition-transform"
+                  >
+                    <Mic className="w-7 h-7" />
+                  </button>
+                </div>
+              </>
+            )}
           </motion.div>
         )}
 
-        {state === "feedback" && (
+        {state === "analyzing" && (
+          <motion.div key="analyzing" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="glass-card p-8 flex flex-col items-center gap-4 py-12">
+            <div className="w-12 h-12 border-3 border-primary border-t-transparent rounded-full animate-spin" />
+            <p className="text-muted-foreground text-sm">Analyzing your story with AI...</p>
+          </motion.div>
+        )}
+
+        {state === "feedback" && feedbackData && (
           <motion.div key="feedback" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
+            {audioUrl && (
+              <div className="glass-card p-6 space-y-3">
+                <h3 className="text-sm font-medium text-muted-foreground">Your Recording</h3>
+                <audio controls src={audioUrl} className="w-full" />
+              </div>
+            )}
+
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <div className="glass-card p-6 flex flex-col items-center gap-4">
                 <h3 className="text-sm font-medium text-muted-foreground">Story Score</h3>
-                <ScoreRing score={mockFeedback.score} size={140} />
+                <ScoreRing score={feedbackData.score} size={140} />
               </div>
               <div className="glass-card p-6 space-y-4 md:col-span-2">
                 <h3 className="text-sm font-medium text-muted-foreground">Story Breakdown</h3>
-                <MetricBar label="Structure" value={mockFeedback.structure} />
-                <MetricBar label="Engagement" value={mockFeedback.engagement} />
-                <MetricBar label="Emotional Connection" value={mockFeedback.emotion} />
-                <MetricBar label="Clarity" value={mockFeedback.clarity} />
+                <MetricBar label="Structure" value={feedbackData.structure} />
+                <MetricBar label="Engagement" value={feedbackData.engagement} />
+                <MetricBar label="Emotional Connection" value={feedbackData.emotion} />
+                <MetricBar label="Clarity" value={feedbackData.clarity} />
               </div>
             </div>
             <div className="glass-card p-6 space-y-4">
               <h3 className="text-sm font-medium text-muted-foreground">AI Feedback</h3>
               <ul className="space-y-3">
-                {mockFeedback.feedback.map((item, i) => (
+                {feedbackData.feedback.map((item, i) => (
                   <li key={i} className="flex gap-3 text-sm">
                     <span className="mt-0.5 w-5 h-5 rounded-full bg-primary/10 text-primary flex items-center justify-center text-xs font-bold shrink-0">{i + 1}</span>
                     <span className="text-secondary-foreground">{item}</span>
