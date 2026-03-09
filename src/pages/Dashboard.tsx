@@ -61,7 +61,7 @@ export default function DashboardPage() {
             {getGreeting()}, <span className="gradient-text">Amilcar</span>
           </h1>
           {streak >= 1 ? (
-            <span className="text-lg font-display font-bold text-amber-400">🔥 {streak} day streak</span>
+            <span className="text-lg font-display font-bold" style={{ color: "hsl(45, 93%, 58%)" }}>🔥 {streak} day streak</span>
           ) : null}
         </div>
         <p className="text-muted-foreground mt-1">
