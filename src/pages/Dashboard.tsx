@@ -8,7 +8,7 @@ import {
   getWeeklyScores, getRecentActivity, getThisWeekSessionCount,
   formatSessionDate, type Session,
 } from "@/lib/sessionStorage";
-import { useMemo } from "react";
+import { useState, useEffect, useCallback } from "react";
 
 const container = {
   hidden: {},
@@ -33,15 +33,35 @@ const typeLabel = { voice: "Voice Analysis", story: "Story Practice", delivery: 
 export default function DashboardPage() {
   const navigate = useNavigate();
 
-  const sessions = useMemo(() => getSessions(), []);
-  const totalRecordings = sessions.length;
-  const totalStories = useMemo(() => getTotalStories(), []);
-  const streak = useMemo(() => getStreak(), []);
-  const weeklyScores = useMemo(() => getWeeklyScores(), []);
-  const recentActivity = useMemo(() => getRecentActivity(5), []);
-  const thisWeek = useMemo(() => getThisWeekSessionCount(), []);
-  const allSessions = useMemo(() => [...sessions].sort((a, b) => b.id - a.id), [sessions]);
+  const [sessions, setSessions] = useState<Session[]>([]);
+  const [totalStories, setTotalStories] = useState(0);
+  const [streak, setStreak] = useState(0);
+  const [weeklyScores, setWeeklyScores] = useState<{ day: string; score: number }[]>([]);
+  const [recentActivity, setRecentActivity] = useState<Session[]>([]);
+  const [thisWeek, setThisWeek] = useState(0);
 
+  const refresh = useCallback(() => {
+    const s = getSessions();
+    setSessions(s);
+    setTotalStories(getTotalStories());
+    setStreak(getStreak());
+    setWeeklyScores(getWeeklyScores());
+    setRecentActivity(getRecentActivity(5));
+    setThisWeek(getThisWeekSessionCount());
+  }, []);
+
+  useEffect(() => {
+    refresh();
+    window.addEventListener('focus', refresh);
+    window.addEventListener('wallervoice:session-saved', refresh);
+    return () => {
+      window.removeEventListener('focus', refresh);
+      window.removeEventListener('wallervoice:session-saved', refresh);
+    };
+  }, [refresh]);
+
+  const totalRecordings = sessions.length;
+  const allSessions = [...sessions].sort((a, b) => b.id - a.id);
   const latestScore = recentActivity.length > 0 ? recentActivity[0].score : 0;
   const isEmpty = sessions.length === 0;
 

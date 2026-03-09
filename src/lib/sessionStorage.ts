@@ -21,6 +21,7 @@ export function addSession(session: Session): void {
   const sessions = getSessions();
   sessions.push(session);
   localStorage.setItem(SESSIONS_KEY, JSON.stringify(sessions));
+  window.dispatchEvent(new Event('wallervoice:session-saved'));
 }
 
 export function getCompletedExercises(): number[] {
