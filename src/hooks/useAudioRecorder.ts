@@ -200,7 +200,19 @@ export function useAudioRecorder(lang: string = "en-US"): UseAudioRecorderReturn
 
     setIsRecording(false);
 
-    await new Promise((r) => setTimeout(r, 1500));
+    // Poll until acoustic data is collected or max 3s
+    const pollStart = Date.now();
+    await new Promise<void>((resolve) => {
+      const check = () => {
+        const hasData = pitchHistoryRef.current.length > 0 || volumeHistoryRef.current.length > 0;
+        if (hasData || Date.now() - pollStart >= 3000) {
+          resolve();
+        } else {
+          setTimeout(check, 100);
+        }
+      };
+      check();
+    });
 
     return {
       transcript: transcriptRef.current.trim(),
