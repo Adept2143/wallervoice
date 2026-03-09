@@ -7,6 +7,7 @@ import { MetricBar } from "@/components/MetricBar";
 import { useAudioRecorder } from "@/hooks/useAudioRecorder";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/components/ui/sonner";
+import { addSession } from "@/lib/sessionStorage";
 
 const prompts = [
   { id: 1, text: "Tell a funny story from your day.", category: "Humor" },
@@ -14,6 +15,11 @@ const prompts = [
   { id: 3, text: "Describe a memorable encounter with a stranger.", category: "Narrative" },
   { id: 4, text: "Tell a story about a time you overcame fear.", category: "Courage" },
   { id: 5, text: "Describe your favorite childhood memory.", category: "Nostalgia" },
+  { id: 6, text: "Explain what AI automation can do for a 300-unit property management company in under 60 seconds.", category: "Sales Pitch" },
+  { id: 7, text: "A PM owner says: 'We already have a system that works.' Respond with confidence and curiosity.", category: "Objection Handling" },
+  { id: 8, text: "Describe the S.I.D.E. Formula (Strategy, Interviews, Deployment, Evolution) to a skeptical prospect.", category: "Methodology" },
+  { id: 9, text: "Tell a story about a time you solved a complex problem for a large organization. Make it vivid and specific.", category: "Credibility Story" },
+  { id: 10, text: "Open a discovery call with a property management owner. Introduce yourself, set the agenda, and ask the first question.", category: "Discovery Call" },
 ];
 
 interface StoryFeedback {
@@ -75,9 +81,7 @@ export default function StorytellingPage() {
     setState("analyzing");
     const result = await stopRecording();
 
-    if (result?.audioUrl) {
-      setAudioUrl(result.audioUrl);
-    }
+    if (result?.audioUrl) setAudioUrl(result.audioUrl);
 
     if (!result || !result.transcript.trim()) {
       toast.error("Could not detect any speech. Please speak clearly and try again.");
@@ -95,19 +99,32 @@ export default function StorytellingPage() {
 
       setFeedbackData({
         score: data.score ?? 0,
-        structure: data.clarity ?? 0,
+        structure: data.pacing ?? 0,
         engagement: data.confidence ?? 0,
         emotion: data.vocalVariety ?? 0,
         clarity: data.clarity ?? 0,
         feedback: data.feedback ?? [],
       });
       setState("feedback");
+
+      // Persist session
+      addSession({
+        id: Date.now(),
+        type: 'story',
+        score: data.score ?? 0,
+        date: new Date().toISOString(),
+        durationSeconds: result.durationSeconds,
+      });
     } catch (err) {
       console.error("Analysis error:", err);
       toast.error(err instanceof Error ? err.message : "Failed to analyze story.");
       setState("recording");
     }
   };
+
+  // Group prompts by category type
+  const storyPrompts = prompts.filter(p => ["Humor", "Reflection", "Narrative", "Courage", "Nostalgia"].includes(p.category));
+  const salesPrompts = prompts.filter(p => !["Humor", "Reflection", "Narrative", "Courage", "Nostalgia"].includes(p.category));
 
   return (
     <div className="space-y-8">
@@ -118,23 +135,38 @@ export default function StorytellingPage() {
 
       <AnimatePresence mode="wait">
         {state === "prompts" && (
-          <motion.div key="prompts" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-3">
-            {prompts.map((prompt) => (
-              <button
-                key={prompt.id}
-                onClick={() => handleSelectPrompt(prompt)}
-                className="w-full glass-card p-5 flex items-center gap-4 text-left hover:border-primary/30 transition-colors group"
-              >
-                <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-                  <BookOpen className="w-5 h-5 text-primary" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="font-medium text-foreground">{prompt.text}</p>
-                  <span className="text-xs text-muted-foreground">{prompt.category}</span>
-                </div>
-                <ChevronRight className="w-5 h-5 text-muted-foreground group-hover:text-primary transition-colors" />
-              </button>
-            ))}
+          <motion.div key="prompts" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-6">
+            <div className="space-y-3">
+              <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">Storytelling</h2>
+              {storyPrompts.map((prompt) => (
+                <button key={prompt.id} onClick={() => handleSelectPrompt(prompt)} className="w-full glass-card p-5 flex items-center gap-4 text-left hover:border-primary/30 transition-colors group">
+                  <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                    <BookOpen className="w-5 h-5 text-primary" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium text-foreground">{prompt.text}</p>
+                    <span className="text-xs text-muted-foreground">{prompt.category}</span>
+                  </div>
+                  <ChevronRight className="w-5 h-5 text-muted-foreground group-hover:text-primary transition-colors" />
+                </button>
+              ))}
+            </div>
+
+            <div className="space-y-3">
+              <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">Sales & Consulting</h2>
+              {salesPrompts.map((prompt) => (
+                <button key={prompt.id} onClick={() => handleSelectPrompt(prompt)} className="w-full glass-card p-5 flex items-center gap-4 text-left hover:border-primary/30 transition-colors group">
+                  <div className="w-10 h-10 rounded-lg bg-info/10 flex items-center justify-center shrink-0">
+                    <BookOpen className="w-5 h-5 text-info" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium text-foreground">{prompt.text}</p>
+                    <span className="text-xs text-muted-foreground">{prompt.category}</span>
+                  </div>
+                  <ChevronRight className="w-5 h-5 text-muted-foreground group-hover:text-primary transition-colors" />
+                </button>
+              ))}
+            </div>
           </motion.div>
         )}
 
@@ -150,10 +182,7 @@ export default function StorytellingPage() {
                   <p className="text-destructive text-sm font-medium">Recording...</p>
                   <span className="text-muted-foreground text-sm font-mono">{formatTime(recordingTime)}</span>
                 </div>
-                <button
-                  onClick={handleStop}
-                  className="w-16 h-16 rounded-full bg-destructive flex items-center justify-center text-destructive-foreground hover:scale-105 transition-transform"
-                >
+                <button onClick={handleStop} className="w-16 h-16 rounded-full bg-destructive flex items-center justify-center text-destructive-foreground hover:scale-105 transition-transform">
                   <Square className="w-6 h-6" />
                 </button>
               </>
@@ -162,10 +191,7 @@ export default function StorytellingPage() {
                 <p className="text-muted-foreground text-sm">Tap the mic to start recording your story</p>
                 <div className="flex gap-4">
                   <Button variant="outline" onClick={() => setState("prompts")}>Back</Button>
-                  <button
-                    onClick={handleRecord}
-                    className="w-16 h-16 rounded-full bg-primary flex items-center justify-center text-primary-foreground hover:scale-105 transition-transform"
-                  >
+                  <button onClick={handleRecord} className="w-16 h-16 rounded-full bg-primary flex items-center justify-center text-primary-foreground hover:scale-105 transition-transform">
                     <Mic className="w-7 h-7" />
                   </button>
                 </div>

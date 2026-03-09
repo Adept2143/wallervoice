@@ -21,7 +21,10 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
             <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
               <Sparkles className="w-4 h-4 text-primary-foreground" />
             </div>
-            <span className="font-display font-bold text-lg text-foreground">VoiceCraft AI</span>
+            <div className="flex flex-col">
+              <span className="font-display font-bold text-lg text-foreground leading-tight">WallerVoice</span>
+              <span className="text-[10px] text-muted-foreground leading-tight hidden sm:block">Your Personal Speaking Coach</span>
+            </div>
           </div>
           <nav className="hidden md:flex items-center gap-1">
             {navItems.map((item) => (
@@ -41,7 +44,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
             ))}
           </nav>
           <div className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center text-xs font-medium text-secondary-foreground">
-            U
+            A
           </div>
         </div>
       </header>
@@ -68,7 +71,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
       </nav>
 
       {/* Content */}
-      <main className="pt-16 pb-20 md:pb-8">
+      <main className="pt-16 pb-24 md:pb-8 min-h-screen">
         <div className="mx-auto max-w-7xl px-4 md:px-6 py-6 md:py-10">
           {children}
         </div>

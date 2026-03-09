@@ -7,7 +7,7 @@ interface UseAudioRecorderReturn {
   error: string | null;
 }
 
-export function useAudioRecorder(): UseAudioRecorderReturn {
+export function useAudioRecorder(lang: string = "en-US"): UseAudioRecorderReturn {
   const [isRecording, setIsRecording] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -26,7 +26,6 @@ export function useAudioRecorder(): UseAudioRecorderReturn {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       streamRef.current = stream;
 
-      // Determine supported MIME type
       const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
         ? "audio/webm;codecs=opus"
         : MediaRecorder.isTypeSupported("audio/webm")
@@ -47,18 +46,16 @@ export function useAudioRecorder(): UseAudioRecorderReturn {
         }
       };
 
-      // Request data every second for reliability
       mediaRecorder.start(1000);
       startTimeRef.current = Date.now();
 
-      // Start live speech recognition
       const SpeechRecognition =
         (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
       if (SpeechRecognition) {
         const recognition = new SpeechRecognition();
         recognition.continuous = true;
         recognition.interimResults = false;
-        recognition.lang = "en-US";
+        recognition.lang = lang;
 
         recognition.onresult = (event: any) => {
           for (let i = event.resultIndex; i < event.results.length; i++) {
@@ -99,12 +96,11 @@ export function useAudioRecorder(): UseAudioRecorderReturn {
       }
       console.error("Recording error:", err);
     }
-  }, []);
+  }, [lang]);
 
   const stopRecording = useCallback(async () => {
     const durationSeconds = Math.round((Date.now() - startTimeRef.current) / 1000);
 
-    // Stop speech recognition
     if (recognitionRef.current) {
       try {
         recognitionRef.current.stop();
@@ -112,7 +108,6 @@ export function useAudioRecorder(): UseAudioRecorderReturn {
       recognitionRef.current = null;
     }
 
-    // Stop media recorder and wait for final data
     const mediaRecorder = mediaRecorderRef.current;
     let audioUrl = "";
 
@@ -122,7 +117,6 @@ export function useAudioRecorder(): UseAudioRecorderReturn {
         mediaRecorder.stop();
       });
 
-      // Build blob from chunks
       if (chunksRef.current.length > 0) {
         const blob = new Blob(chunksRef.current, {
           type: mediaRecorder.mimeType || "audio/webm",
@@ -131,7 +125,6 @@ export function useAudioRecorder(): UseAudioRecorderReturn {
       }
     }
 
-    // Stop all tracks
     if (streamRef.current) {
       streamRef.current.getTracks().forEach((t) => t.stop());
       streamRef.current = null;
@@ -139,7 +132,6 @@ export function useAudioRecorder(): UseAudioRecorderReturn {
 
     setIsRecording(false);
 
-    // Wait for final speech recognition results
     await new Promise((r) => setTimeout(r, 1500));
 
     return {
