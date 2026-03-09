@@ -129,7 +129,7 @@ export default function StorytellingPage() {
   return (
     <div className="space-y-8">
       <div>
-        <h1 className="text-3xl font-display font-bold text-foreground">Storytelling Practice</h1>
+        <h1 className="text-3xl font-display font-bold gradient-text">Storytelling Practice</h1>
         <p className="text-muted-foreground mt-1">Choose a prompt and practice telling your story</p>
       </div>
 
@@ -173,16 +173,20 @@ export default function StorytellingPage() {
         {state === "recording" && (
           <motion.div key="recording" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="glass-card p-8 flex flex-col items-center gap-6">
             <span className="px-3 py-1 rounded-full bg-primary/10 text-primary text-xs font-medium">{selectedPrompt?.category}</span>
-            <p className="text-xl font-display font-semibold text-foreground text-center max-w-md">"{selectedPrompt?.text}"</p>
+            <div className="relative text-center max-w-md">
+              <span className="text-4xl leading-none text-primary/40 absolute -top-2 -left-3">"</span>
+              <p className="text-xl font-display font-semibold text-foreground/80 italic px-5">{selectedPrompt?.text}</p>
+              <span className="text-4xl leading-none text-primary/40 absolute -bottom-4 -right-1">"</span>
+            </div>
 
             {isRecording ? (
               <>
                 <div className="flex items-center gap-2">
-                  <span className="w-3 h-3 rounded-full bg-destructive animate-pulse" />
-                  <p className="text-destructive text-sm font-medium">Recording...</p>
+                  <span className="w-3 h-3 rounded-full animate-pulse" style={{ background: '#FF6B35' }} />
+                  <p className="text-sm font-medium" style={{ color: '#FF6B35' }}>Recording...</p>
                   <span className="text-muted-foreground text-sm font-mono">{formatTime(recordingTime)}</span>
                 </div>
-                <button onClick={handleStop} className="w-16 h-16 rounded-full bg-destructive flex items-center justify-center text-destructive-foreground hover:scale-105 transition-transform">
+                <button onClick={handleStop} className="w-16 h-16 rounded-full flex items-center justify-center text-white hover:scale-105 transition-transform" style={{ background: '#FF6B35' }}>
                   <Square className="w-6 h-6" />
                 </button>
               </>
@@ -191,7 +195,15 @@ export default function StorytellingPage() {
                 <p className="text-muted-foreground text-sm">Tap the mic to start recording your story</p>
                 <div className="flex gap-4">
                   <Button variant="outline" onClick={() => setState("prompts")}>Back</Button>
-                  <button onClick={handleRecord} className="w-16 h-16 rounded-full bg-primary flex items-center justify-center text-primary-foreground hover:scale-105 transition-transform">
+                  <button
+                    onClick={handleRecord}
+                    className="w-16 h-16 rounded-full flex items-center justify-center hover:scale-[1.06] transition-transform"
+                    style={{
+                      background: 'linear-gradient(135deg, #E8FF47, #c8df2a)',
+                      color: '#0A0D0F',
+                      boxShadow: '0 0 24px rgba(232,255,71,0.3)',
+                    }}
+                  >
                     <Mic className="w-7 h-7" />
                   </button>
                 </div>
@@ -202,7 +214,7 @@ export default function StorytellingPage() {
 
         {state === "analyzing" && (
           <motion.div key="analyzing" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="glass-card p-8 flex flex-col items-center gap-4 py-12">
-            <div className="w-12 h-12 border-3 border-primary border-t-transparent rounded-full animate-spin" />
+            <div className="w-12 h-12 rounded-full animate-spin" style={{ border: '3px solid #E8FF47', borderTopColor: 'transparent' }} />
             <p className="text-muted-foreground text-sm">Analyzing your story with AI...</p>
           </motion.div>
         )}
@@ -234,8 +246,8 @@ export default function StorytellingPage() {
               <ul className="space-y-3">
                 {feedbackData.feedback.map((item, i) => (
                   <li key={i} className="flex gap-3 text-sm">
-                    <span className="mt-0.5 w-5 h-5 rounded-full bg-primary/10 text-primary flex items-center justify-center text-xs font-bold shrink-0">{i + 1}</span>
-                    <span className="text-secondary-foreground">{item}</span>
+                    <span className="mt-0.5 w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold shrink-0" style={{ background: 'rgba(232,255,71,0.1)', color: '#E8FF47', border: '1px solid rgba(232,255,71,0.2)' }}>{i + 1}</span>
+                    <span className="text-foreground/90">{item}</span>
                   </li>
                 ))}
               </ul>

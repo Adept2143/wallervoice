@@ -55,11 +55,11 @@ function PitchContour({ pitchHistory }: { pitchHistory: number[] }) {
     const range = max - min || 1;
     const pad = 20;
 
-    ctx.fillStyle = "hsl(220, 20%, 8%)";
+    ctx.fillStyle = "#0A0D0F";
     ctx.fillRect(0, 0, w, h);
 
     ctx.beginPath();
-    ctx.strokeStyle = "hsl(45, 90%, 55%)";
+    ctx.strokeStyle = "#E8FF47";
     ctx.lineWidth = 2;
     ctx.lineJoin = "round";
 
@@ -76,13 +76,13 @@ function PitchContour({ pitchHistory }: { pitchHistory: number[] }) {
     ctx.lineTo(pad, h - pad);
     ctx.closePath();
     const grad = ctx.createLinearGradient(0, 0, 0, h);
-    grad.addColorStop(0, "hsla(45, 90%, 55%, 0.15)");
-    grad.addColorStop(1, "hsla(45, 90%, 55%, 0)");
+    grad.addColorStop(0, "rgba(232, 255, 71, 0.12)");
+    grad.addColorStop(1, "rgba(232, 255, 71, 0)");
     ctx.fillStyle = grad;
     ctx.fill();
 
     // Labels
-    ctx.fillStyle = "hsl(220, 10%, 50%)";
+    ctx.fillStyle = "#6B7280";
     ctx.font = "10px monospace";
     ctx.fillText(`${Math.round(max)} Hz`, 2, pad - 4);
     ctx.fillText(`${Math.round(min)} Hz`, 2, h - pad + 12);
@@ -221,7 +221,7 @@ export default function VoiceAnalyzerPage() {
   return (
     <div className="space-y-8">
       <div>
-        <h1 className="text-3xl font-display font-bold text-foreground">Voice Analyzer</h1>
+        <h1 className="text-3xl font-display font-bold gradient-text">Voice Analyzer</h1>
         <p className="text-muted-foreground mt-1">
           {isSpanish ? "Graba tu voz y recibe retroalimentación con IA" : "Record your voice and get AI-powered feedback"}
         </p>
@@ -251,7 +251,7 @@ export default function VoiceAnalyzerPage() {
       </div>
 
       {isSpanish && (
-        <div className="glass-card p-4 border-primary/20">
+        <div className="glass-card p-4" style={{ borderColor: 'rgba(232,255,71,0.2)' }}>
           <p className="text-sm text-muted-foreground">
             💡 Practice your PM phrases: <span className="text-foreground font-medium">inquilino, mantenimiento, renta, ¿en qué le puedo ayudar?</span>
           </p>
@@ -267,7 +267,14 @@ export default function VoiceAnalyzerPage() {
               <p className="text-muted-foreground text-sm">{isSpanish ? "Toca para grabar" : "Tap to start recording"}</p>
               <button
                 onClick={handleRecord}
-                className="relative w-20 h-20 rounded-full bg-primary flex items-center justify-center text-primary-foreground hover:scale-105 transition-transform"
+                className="relative w-20 h-20 rounded-full flex items-center justify-center hover:scale-[1.06] transition-transform"
+                style={{
+                  background: 'linear-gradient(135deg, #E8FF47, #c8df2a)',
+                  color: '#0A0D0F',
+                  boxShadow: '0 0 24px rgba(232,255,71,0.3)',
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.boxShadow = '0 0 36px rgba(232,255,71,0.45)'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.boxShadow = '0 0 24px rgba(232,255,71,0.3)'; }}
               >
                 <Mic className="w-8 h-8" />
               </button>
@@ -277,25 +284,26 @@ export default function VoiceAnalyzerPage() {
           {state === "recording" && (
             <motion.div key="recording" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex flex-col items-center gap-4">
               <div className="flex items-center gap-2">
-                <span className="w-3 h-3 rounded-full bg-destructive animate-pulse" />
-                <p className="text-destructive text-sm font-medium">{isSpanish ? "Grabando..." : "Recording..."}</p>
+                <span className="w-3 h-3 rounded-full animate-pulse" style={{ background: '#FF6B35' }} />
+                <p className="text-sm font-medium" style={{ color: '#FF6B35' }}>{isSpanish ? "Grabando..." : "Recording..."}</p>
                 <span className="text-muted-foreground text-sm font-mono">{formatTime(recordingTime)}</span>
               </div>
               <div className="relative">
                 <button
                   onClick={handleStop}
-                  className="relative z-10 w-20 h-20 rounded-full bg-destructive flex items-center justify-center text-destructive-foreground hover:scale-105 transition-transform"
+                  className="relative z-10 w-20 h-20 rounded-full flex items-center justify-center text-white hover:scale-105 transition-transform"
+                  style={{ background: '#FF6B35' }}
                 >
                   <Square className="w-6 h-6" />
                 </button>
-                <div className="absolute inset-0 rounded-full bg-destructive/30 animate-pulse-ring" />
+                <div className="absolute inset-0 rounded-full animate-pulse-ring" style={{ background: 'rgba(255,107,53,0.3)' }} />
               </div>
             </motion.div>
           )}
 
           {state === "analyzing" && (
             <motion.div key="analyzing" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex flex-col items-center gap-4 py-8">
-              <div className="w-12 h-12 border-3 border-primary border-t-transparent rounded-full animate-spin" />
+              <div className="w-12 h-12 rounded-full animate-spin" style={{ border: '3px solid #E8FF47', borderTopColor: 'transparent' }} />
               <p className="text-muted-foreground text-sm">{isSpanish ? "Analizando tu voz con IA..." : "Analyzing your voice with AI..."}</p>
             </motion.div>
           )}
@@ -314,10 +322,14 @@ export default function VoiceAnalyzerPage() {
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }} className="space-y-6">
             <div className="glass-card p-6 space-y-3">
               <h3 className="text-sm font-medium text-muted-foreground">Transcript</h3>
-              <p className="text-secondary-foreground text-sm leading-relaxed italic">"{analysis.transcript}"</p>
-              <div className="flex gap-4 text-xs text-muted-foreground">
-                <span>{analysis.wordCount} words</span>
-                <span>{analysis.wpm} WPM</span>
+              <div className="relative">
+                <span className="text-4xl leading-none text-primary/40 absolute -top-2 -left-1">"</span>
+                <p className="text-foreground/80 text-sm leading-relaxed italic pl-5 pr-5">{analysis.transcript}</p>
+                <span className="text-4xl leading-none text-primary/40 absolute -bottom-4 right-0">"</span>
+              </div>
+              <div className="flex gap-3 pt-2">
+                <span className="px-2 py-0.5 rounded-full text-xs font-mono bg-primary/10 text-primary/70">{analysis.wordCount} words</span>
+                <span className="px-2 py-0.5 rounded-full text-xs font-mono bg-primary/10 text-primary/70">{analysis.wpm} WPM</span>
               </div>
             </div>
 
@@ -328,17 +340,17 @@ export default function VoiceAnalyzerPage() {
                   Acoustic Signature — measured from your audio signal
                 </h3>
                 <div className="grid grid-cols-3 gap-4">
-                  <div className="text-center">
-                    <p className="text-2xl font-bold text-foreground">{analysis.avgPitch}</p>
-                    <p className="text-xs text-muted-foreground">Avg Pitch (Hz)</p>
+                  <div className="text-center pb-3 border-b border-primary/10">
+                    <p className="text-3xl font-bold font-mono text-primary">{analysis.avgPitch}</p>
+                    <p className="text-xs text-muted-foreground uppercase tracking-wider mt-1">Avg Pitch (Hz)</p>
                   </div>
-                  <div className="text-center">
-                    <p className="text-2xl font-bold text-foreground">{analysis.pitchRange}</p>
-                    <p className="text-xs text-muted-foreground">Pitch Range (Hz)</p>
+                  <div className="text-center pb-3 border-b border-primary/10">
+                    <p className="text-3xl font-bold font-mono text-primary">{analysis.pitchRange}</p>
+                    <p className="text-xs text-muted-foreground uppercase tracking-wider mt-1">Pitch Range (Hz)</p>
                   </div>
-                  <div className="text-center">
-                    <p className="text-2xl font-bold text-foreground">{analysis.pauseRatio}%</p>
-                    <p className="text-xs text-muted-foreground">Pause Ratio</p>
+                  <div className="text-center pb-3 border-b border-primary/10">
+                    <p className="text-3xl font-bold font-mono text-primary">{analysis.pauseRatio}%</p>
+                    <p className="text-xs text-muted-foreground uppercase tracking-wider mt-1">Pause Ratio</p>
                   </div>
                 </div>
               </div>
@@ -359,7 +371,14 @@ export default function VoiceAnalyzerPage() {
                 <div className="flex items-center gap-2">
                   <h3 className="text-sm font-medium text-muted-foreground">Detailed Analysis</h3>
                   {analysis.acousticSource === 'real' && (
-                    <span className="text-xs font-mono text-success bg-success/10 px-2 py-0.5 rounded-full">
+                    <span
+                      className="text-xs font-mono px-2 py-0.5 rounded-full"
+                      style={{
+                        background: 'rgba(232,255,71,0.08)',
+                        border: '1px solid rgba(232,255,71,0.2)',
+                        color: '#E8FF47',
+                      }}
+                    >
                       ✦ Real Audio
                     </span>
                   )}
@@ -379,8 +398,8 @@ export default function VoiceAnalyzerPage() {
               <ul className="space-y-3">
                 {analysis.feedback.map((item, i) => (
                   <li key={i} className="flex gap-3 text-sm">
-                    <span className="mt-0.5 w-5 h-5 rounded-full bg-primary/10 text-primary flex items-center justify-center text-xs font-bold shrink-0">{i + 1}</span>
-                    <span className="text-secondary-foreground">{item}</span>
+                    <span className="mt-0.5 w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold shrink-0" style={{ background: 'rgba(232,255,71,0.1)', color: '#E8FF47', border: '1px solid rgba(232,255,71,0.2)' }}>{i + 1}</span>
+                    <span className="text-foreground/90">{item}</span>
                   </li>
                 ))}
               </ul>

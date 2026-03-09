@@ -12,16 +12,16 @@ export function WaveformVisualizer({ isRecording = false, className, bars = 40 }
       {Array.from({ length: bars }).map((_, i) => (
         <div
           key={i}
-          className={cn(
-            "w-1 rounded-full transition-all",
-            isRecording ? "bg-primary" : "bg-muted-foreground/30"
-          )}
+          className="w-1 rounded-full transition-all"
           style={{
             height: isRecording
               ? `${Math.random() * 48 + 8}px`
               : `${Math.sin(i * 0.3) * 12 + 16}px`,
             animationDelay: `${i * 0.05}s`,
             animation: isRecording ? `wave 0.8s ease-in-out ${i * 0.05}s infinite` : "none",
+            background: isRecording
+              ? (i % 2 === 0 ? '#E8FF47' : '#FF6B35')
+              : 'rgba(255,255,255,0.1)',
           }}
         />
       ))}

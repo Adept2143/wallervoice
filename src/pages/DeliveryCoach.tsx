@@ -123,7 +123,7 @@ export default function DeliveryCoachPage() {
   return (
     <div className="space-y-8">
       <div>
-        <h1 className="text-3xl font-display font-bold text-foreground">Delivery Coach</h1>
+        <h1 className="text-3xl font-display font-bold gradient-text">Delivery Coach</h1>
         <p className="text-muted-foreground mt-1">Guided exercises to sharpen your speaking skills</p>
       </div>
 
@@ -187,14 +187,23 @@ export default function DeliveryCoachPage() {
               </div>
 
               <div className="glass-card p-5 bg-muted/50">
-                <p className="text-lg text-foreground font-medium leading-relaxed italic">"{selectedExercise.prompt}"</p>
+                <div className="relative">
+                  <span className="text-4xl leading-none text-primary/40 absolute -top-2 -left-1">"</span>
+                  <p className="text-lg text-foreground/80 font-medium leading-relaxed italic pl-5 pr-5">{selectedExercise.prompt}</p>
+                  <span className="text-4xl leading-none text-primary/40 absolute -bottom-4 right-0">"</span>
+                </div>
               </div>
 
               <div className="flex flex-col items-center gap-4">
                 {!isRecording && !isAnalyzing ? (
                   <button
                     onClick={handleRecord}
-                    className="w-16 h-16 rounded-full bg-primary flex items-center justify-center text-primary-foreground hover:scale-105 transition-transform"
+                    className="w-16 h-16 rounded-full flex items-center justify-center hover:scale-[1.06] transition-transform"
+                    style={{
+                      background: 'linear-gradient(135deg, #E8FF47, #c8df2a)',
+                      color: '#0A0D0F',
+                      boxShadow: '0 0 24px rgba(232,255,71,0.3)',
+                    }}
                   >
                     <Mic className="w-7 h-7" />
                   </button>
@@ -202,22 +211,23 @@ export default function DeliveryCoachPage() {
                   <div className="relative">
                     <button
                       onClick={handleStop}
-                      className="relative z-10 w-16 h-16 rounded-full bg-destructive flex items-center justify-center text-destructive-foreground hover:scale-105 transition-transform"
+                      className="relative z-10 w-16 h-16 rounded-full flex items-center justify-center text-white hover:scale-105 transition-transform"
+                      style={{ background: '#FF6B35' }}
                     >
                       <Square className="w-6 h-6" />
                     </button>
-                    <div className="absolute inset-0 rounded-full bg-destructive/30 animate-pulse" />
+                    <div className="absolute inset-0 rounded-full animate-pulse" style={{ background: 'rgba(255,107,53,0.3)' }} />
                   </div>
                 ) : (
                   <div className="flex flex-col items-center gap-2">
-                    <div className="w-10 h-10 border-3 border-primary border-t-transparent rounded-full animate-spin" />
+                    <div className="w-10 h-10 rounded-full animate-spin" style={{ border: '3px solid #E8FF47', borderTopColor: 'transparent' }} />
                     <p className="text-xs text-muted-foreground">Analyzing...</p>
                   </div>
                 )}
                 <p className="text-xs text-muted-foreground">
                   {isRecording ? (
                     <span className="flex items-center gap-2">
-                      <span className="w-2 h-2 rounded-full bg-destructive animate-pulse" />
+                      <span className="w-2 h-2 rounded-full animate-pulse" style={{ background: '#FF6B35' }} />
                       Recording... tap to stop
                     </span>
                   ) : isAnalyzing ? null : "Tap to record your attempt"}
@@ -240,7 +250,10 @@ export default function DeliveryCoachPage() {
                       <ScoreRing score={analysisResult.score} size={80} strokeWidth={6} />
                       <div className="flex-1 space-y-2">
                         {analysisResult.feedback.map((f, i) => (
-                          <p key={i} className="text-sm text-muted-foreground">{f}</p>
+                          <div key={i} className="flex gap-2 text-sm">
+                            <span className="w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold shrink-0" style={{ background: 'rgba(232,255,71,0.1)', color: '#E8FF47', border: '1px solid rgba(232,255,71,0.2)' }}>{i + 1}</span>
+                            <span className="text-foreground/90">{f}</span>
+                          </div>
                         ))}
                       </div>
                     </div>
@@ -248,7 +261,7 @@ export default function DeliveryCoachPage() {
                   {analysisResult.transcript && (
                     <div className="glass-card p-3 bg-muted/30">
                       <p className="text-xs text-muted-foreground mb-1">What you said:</p>
-                      <p className="text-sm text-foreground italic">"{analysisResult.transcript}"</p>
+                      <p className="text-sm text-foreground/80 italic">"{analysisResult.transcript}"</p>
                     </div>
                   )}
                 </div>

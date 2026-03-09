@@ -11,10 +11,9 @@ export function ScoreRing({ score, size = 120, strokeWidth = 8, label }: ScoreRi
   const offset = circumference - (score / 100) * circumference;
 
   const getColor = () => {
-    if (score >= 80) return "hsl(var(--success))";
-    if (score >= 60) return "hsl(var(--primary))";
-    if (score >= 40) return "hsl(var(--warning))";
-    return "hsl(var(--destructive))";
+    if (score >= 75) return "#4ADE80";
+    if (score >= 50) return "#E8FF47";
+    return "#FF6B35";
   };
 
   return (
@@ -25,7 +24,7 @@ export function ScoreRing({ score, size = 120, strokeWidth = 8, label }: ScoreRi
           cy={size / 2}
           r={radius}
           fill="none"
-          stroke="hsl(var(--border))"
+          stroke="#1a1f2e"
           strokeWidth={strokeWidth}
         />
         <circle
@@ -42,7 +41,12 @@ export function ScoreRing({ score, size = 120, strokeWidth = 8, label }: ScoreRi
         />
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center">
-        <span className="text-2xl font-display font-bold text-foreground">{score}</span>
+        <span
+          className="text-2xl font-display font-bold font-mono"
+          style={{ color: score >= 75 ? '#E8FF47' : undefined }}
+        >
+          {score}
+        </span>
         {label && <span className="text-xs text-muted-foreground">{label}</span>}
       </div>
     </div>
