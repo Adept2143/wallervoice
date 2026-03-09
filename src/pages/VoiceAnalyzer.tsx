@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { Mic, Square, RotateCcw } from "lucide-react";
+import { Mic, Square, RotateCcw, Globe } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { ScoreRing } from "@/components/ScoreRing";
@@ -8,6 +8,8 @@ import { WaveformVisualizer } from "@/components/WaveformVisualizer";
 import { useAudioRecorder } from "@/hooks/useAudioRecorder";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/components/ui/sonner";
+import { addSession } from "@/lib/sessionStorage";
+import { cn } from "@/lib/utils";
 
 interface VoiceAnalysis {
   score: number;
@@ -31,8 +33,10 @@ export default function VoiceAnalyzerPage() {
   const [analysis, setAnalysis] = useState<VoiceAnalysis | null>(null);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [recordingTime, setRecordingTime] = useState(0);
+  const [lang, setLang] = useState<"en-US" | "es-ES">("en-US");
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const { startRecording, stopRecording, error: recorderError } = useAudioRecorder();
+  const { startRecording, stopRecording, error: recorderError } = useAudioRecorder(lang);
+  const lastDurationRef = useRef(0);
 
   useEffect(() => {
     if (recorderError) {
@@ -41,7 +45,6 @@ export default function VoiceAnalyzerPage() {
     }
   }, [recorderError]);
 
-  // Recording timer
   useEffect(() => {
     if (state === "recording") {
       setRecordingTime(0);
@@ -49,9 +52,7 @@ export default function VoiceAnalyzerPage() {
     } else {
       if (timerRef.current) clearInterval(timerRef.current);
     }
-    return () => {
-      if (timerRef.current) clearInterval(timerRef.current);
-    };
+    return () => { if (timerRef.current) clearInterval(timerRef.current); };
   }, [state]);
 
   const formatTime = (seconds: number) => {
@@ -70,9 +71,8 @@ export default function VoiceAnalyzerPage() {
     setState("analyzing");
     const result = await stopRecording();
 
-    if (result?.audioUrl) {
-      setAudioUrl(result.audioUrl);
-    }
+    if (result?.audioUrl) setAudioUrl(result.audioUrl);
+    lastDurationRef.current = result?.durationSeconds ?? 0;
 
     if (!result || !result.transcript.trim()) {
       toast.error("Could not detect any speech. Please speak clearly and try again.");
@@ -90,6 +90,15 @@ export default function VoiceAnalyzerPage() {
 
       setAnalysis(data as VoiceAnalysis);
       setState("results");
+
+      // Persist session
+      addSession({
+        id: Date.now(),
+        type: 'voice',
+        score: data.score ?? 0,
+        date: new Date().toISOString(),
+        durationSeconds: result.durationSeconds,
+      });
     } catch (err) {
       console.error("Analysis error:", err);
       toast.error(err instanceof Error ? err.message : "Failed to analyze voice.");
@@ -105,12 +114,47 @@ export default function VoiceAnalyzerPage() {
     setRecordingTime(0);
   };
 
+  const isSpanish = lang === "es-ES";
+
   return (
     <div className="space-y-8">
       <div>
         <h1 className="text-3xl font-display font-bold text-foreground">Voice Analyzer</h1>
-        <p className="text-muted-foreground mt-1">Record your voice and get AI-powered feedback</p>
+        <p className="text-muted-foreground mt-1">
+          {isSpanish ? "Graba tu voz y recibe retroalimentación con IA" : "Record your voice and get AI-powered feedback"}
+        </p>
       </div>
+
+      {/* Language toggle */}
+      <div className="flex items-center gap-2">
+        <Globe className="w-4 h-4 text-muted-foreground" />
+        <button
+          onClick={() => setLang("en-US")}
+          className={cn(
+            "px-3 py-1.5 rounded-lg text-sm font-medium transition-colors",
+            !isSpanish ? "bg-primary text-primary-foreground" : "bg-secondary text-muted-foreground hover:text-foreground"
+          )}
+        >
+          English
+        </button>
+        <button
+          onClick={() => setLang("es-ES")}
+          className={cn(
+            "px-3 py-1.5 rounded-lg text-sm font-medium transition-colors",
+            isSpanish ? "bg-primary text-primary-foreground" : "bg-secondary text-muted-foreground hover:text-foreground"
+          )}
+        >
+          Español
+        </button>
+      </div>
+
+      {isSpanish && (
+        <div className="glass-card p-4 border-primary/20">
+          <p className="text-sm text-muted-foreground">
+            💡 Practice your PM phrases: <span className="text-foreground font-medium">inquilino, mantenimiento, renta, ¿en qué le puedo ayudar?</span>
+          </p>
+        </div>
+      )}
 
       <div className="glass-card p-8 flex flex-col items-center gap-6">
         <WaveformVisualizer isRecording={state === "recording"} />
@@ -118,7 +162,7 @@ export default function VoiceAnalyzerPage() {
         <AnimatePresence mode="wait">
           {state === "idle" && (
             <motion.div key="idle" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex flex-col items-center gap-4">
-              <p className="text-muted-foreground text-sm">Tap to start recording</p>
+              <p className="text-muted-foreground text-sm">{isSpanish ? "Toca para grabar" : "Tap to start recording"}</p>
               <button
                 onClick={handleRecord}
                 className="relative w-20 h-20 rounded-full bg-primary flex items-center justify-center text-primary-foreground hover:scale-105 transition-transform"
@@ -132,7 +176,7 @@ export default function VoiceAnalyzerPage() {
             <motion.div key="recording" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex flex-col items-center gap-4">
               <div className="flex items-center gap-2">
                 <span className="w-3 h-3 rounded-full bg-destructive animate-pulse" />
-                <p className="text-destructive text-sm font-medium">Recording...</p>
+                <p className="text-destructive text-sm font-medium">{isSpanish ? "Grabando..." : "Recording..."}</p>
                 <span className="text-muted-foreground text-sm font-mono">{formatTime(recordingTime)}</span>
               </div>
               <div className="relative">
@@ -150,13 +194,12 @@ export default function VoiceAnalyzerPage() {
           {state === "analyzing" && (
             <motion.div key="analyzing" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex flex-col items-center gap-4 py-8">
               <div className="w-12 h-12 border-3 border-primary border-t-transparent rounded-full animate-spin" />
-              <p className="text-muted-foreground text-sm">Analyzing your voice with AI...</p>
+              <p className="text-muted-foreground text-sm">{isSpanish ? "Analizando tu voz con IA..." : "Analyzing your voice with AI..."}</p>
             </motion.div>
           )}
         </AnimatePresence>
       </div>
 
-      {/* Audio Playback */}
       {audioUrl && (state === "results" || state === "idle") && (
         <div className="glass-card p-6 space-y-3">
           <h3 className="text-sm font-medium text-muted-foreground">Your Recording</h3>
@@ -166,12 +209,7 @@ export default function VoiceAnalyzerPage() {
 
       <AnimatePresence>
         {state === "results" && analysis && (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5 }}
-            className="space-y-6"
-          >
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }} className="space-y-6">
             <div className="glass-card p-6 space-y-3">
               <h3 className="text-sm font-medium text-muted-foreground">Transcript</h3>
               <p className="text-secondary-foreground text-sm leading-relaxed italic">"{analysis.transcript}"</p>
@@ -187,7 +225,6 @@ export default function VoiceAnalyzerPage() {
                 <ScoreRing score={analysis.score} size={140} />
                 <p className="text-xs text-muted-foreground text-center">Overall speaking quality</p>
               </div>
-
               <div className="glass-card p-6 space-y-4 md:col-span-2">
                 <h3 className="text-sm font-medium text-muted-foreground">Detailed Analysis</h3>
                 <MetricBar label="Tone" value={analysis.tone} />

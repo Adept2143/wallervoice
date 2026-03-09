@@ -1,91 +1,122 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Mic, Square, Play, CheckCircle2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useAudioRecorder } from "@/hooks/useAudioRecorder";
+import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/components/ui/sonner";
+import { ScoreRing } from "@/components/ScoreRing";
+import { addSession, getCompletedExercises, saveCompletedExercises } from "@/lib/sessionStorage";
 
 const exercises = [
   {
-    id: 1,
-    title: "Articulation Drill",
+    id: 1, title: "Articulation Drill",
     description: "Read this tongue twister clearly and at a steady pace.",
     prompt: "She sells seashells by the seashore. The shells she sells are surely seashells.",
-    category: "Articulation",
-    duration: "30 sec",
+    category: "Articulation", duration: "30 sec",
   },
   {
-    id: 2,
-    title: "Pacing Control",
+    id: 2, title: "Pacing Control",
     description: "Speak this sentence slowly, then speed up, then slow down again.",
     prompt: "The quick brown fox jumps over the lazy dog, racing through the meadow and into the forest.",
-    category: "Pacing",
-    duration: "45 sec",
+    category: "Pacing", duration: "45 sec",
   },
   {
-    id: 3,
-    title: "Emotional Range",
+    id: 3, title: "Emotional Range",
     description: "Speak this line with three different emotions: joy, sadness, and excitement.",
     prompt: "I couldn't believe what happened next.",
-    category: "Emotion",
-    duration: "1 min",
+    category: "Emotion", duration: "1 min",
   },
   {
-    id: 4,
-    title: "Projection Practice",
+    id: 4, title: "Projection Practice",
     description: "Start whispering this line, then gradually increase to full projection.",
     prompt: "Every great dream begins with a dreamer. Always remember, you have within you the strength and the patience to reach for the stars.",
-    category: "Projection",
-    duration: "45 sec",
+    category: "Projection", duration: "45 sec",
   },
   {
-    id: 5,
-    title: "Pause Power",
+    id: 5, title: "Pause Power",
     description: "Read this passage with deliberate pauses after each comma and period.",
     prompt: "Success is not final. Failure is not fatal. It is the courage to continue, that counts.",
-    category: "Pacing",
-    duration: "30 sec",
+    category: "Pacing", duration: "30 sec",
   },
 ];
 
+interface AnalysisResult {
+  score: number;
+  feedback: string[];
+  transcript: string;
+}
+
 export default function DeliveryCoachPage() {
   const [selectedExercise, setSelectedExercise] = useState<typeof exercises[0] | null>(null);
-  const [completed, setCompleted] = useState<Set<number>>(new Set());
+  const [completed, setCompleted] = useState<Set<number>>(() => new Set(getCompletedExercises()));
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
+  const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
   const { isRecording, startRecording, stopRecording, error: recorderError } = useAudioRecorder();
 
-  if (recorderError) {
-    toast.error(recorderError);
-  }
+  useEffect(() => {
+    if (recorderError) toast.error(recorderError);
+  }, [recorderError]);
 
   const handleRecord = async () => {
     setAudioUrl(null);
+    setAnalysisResult(null);
     await startRecording();
   };
 
   const handleStop = async () => {
+    setIsAnalyzing(true);
     const result = await stopRecording();
-    if (result?.audioUrl) {
-      setAudioUrl(result.audioUrl);
-    }
-    if (result?.transcript) {
-      toast.success("Recording captured successfully!");
+    if (result?.audioUrl) setAudioUrl(result.audioUrl);
+
+    if (result?.transcript?.trim()) {
+      try {
+        const { data, error } = await supabase.functions.invoke("analyze-voice", {
+          body: { transcript: result.transcript, durationSeconds: result.durationSeconds },
+        });
+        if (!error && data && !data.error) {
+          setAnalysisResult({
+            score: data.score ?? 0,
+            feedback: (data.feedback ?? []).slice(0, 3),
+            transcript: result.transcript,
+          });
+        } else {
+          setAnalysisResult({ score: 0, feedback: [], transcript: result.transcript });
+        }
+      } catch {
+        setAnalysisResult({ score: 0, feedback: [], transcript: result.transcript });
+      }
     } else {
       toast.info("Recording saved. No speech detected by browser transcription.");
     }
+    setIsAnalyzing(false);
   };
 
   const handleComplete = (id: number) => {
+    const score = analysisResult?.score || 85;
+    addSession({
+      id: Date.now(),
+      type: 'delivery',
+      score,
+      date: new Date().toISOString(),
+      durationSeconds: 30,
+    });
+
     if (audioUrl) URL.revokeObjectURL(audioUrl);
     setAudioUrl(null);
-    setCompleted((prev) => new Set([...prev, id]));
+    setAnalysisResult(null);
+    const newCompleted = new Set([...completed, id]);
+    setCompleted(newCompleted);
+    saveCompletedExercises([...newCompleted]);
     setSelectedExercise(null);
   };
 
   const handleClose = () => {
     if (audioUrl) URL.revokeObjectURL(audioUrl);
     setAudioUrl(null);
+    setAnalysisResult(null);
     setSelectedExercise(null);
   };
 
@@ -146,7 +177,7 @@ export default function DeliveryCoachPage() {
               initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.95, opacity: 0 }}
-              className="glass-card p-8 max-w-lg w-full space-y-6"
+              className="glass-card p-8 max-w-lg w-full space-y-6 max-h-[90vh] overflow-y-auto"
               onClick={(e) => e.stopPropagation()}
             >
               <div>
@@ -160,14 +191,14 @@ export default function DeliveryCoachPage() {
               </div>
 
               <div className="flex flex-col items-center gap-4">
-                {!isRecording ? (
+                {!isRecording && !isAnalyzing ? (
                   <button
                     onClick={handleRecord}
                     className="w-16 h-16 rounded-full bg-primary flex items-center justify-center text-primary-foreground hover:scale-105 transition-transform"
                   >
                     <Mic className="w-7 h-7" />
                   </button>
-                ) : (
+                ) : isRecording ? (
                   <div className="relative">
                     <button
                       onClick={handleStop}
@@ -177,6 +208,11 @@ export default function DeliveryCoachPage() {
                     </button>
                     <div className="absolute inset-0 rounded-full bg-destructive/30 animate-pulse" />
                   </div>
+                ) : (
+                  <div className="flex flex-col items-center gap-2">
+                    <div className="w-10 h-10 border-3 border-primary border-t-transparent rounded-full animate-spin" />
+                    <p className="text-xs text-muted-foreground">Analyzing...</p>
+                  </div>
                 )}
                 <p className="text-xs text-muted-foreground">
                   {isRecording ? (
@@ -184,15 +220,37 @@ export default function DeliveryCoachPage() {
                       <span className="w-2 h-2 rounded-full bg-destructive animate-pulse" />
                       Recording... tap to stop
                     </span>
-                  ) : "Tap to record your attempt"}
+                  ) : isAnalyzing ? null : "Tap to record your attempt"}
                 </p>
               </div>
 
               {/* Audio Playback */}
-              {audioUrl && !isRecording && (
+              {audioUrl && !isRecording && !isAnalyzing && (
                 <div className="space-y-2">
                   <p className="text-xs text-muted-foreground">Your Recording</p>
                   <audio controls src={audioUrl} className="w-full" />
+                </div>
+              )}
+
+              {/* AI Feedback Panel */}
+              {analysisResult && !isRecording && !isAnalyzing && (
+                <div className="space-y-4">
+                  {analysisResult.score > 0 && (
+                    <div className="flex items-start gap-4">
+                      <ScoreRing score={analysisResult.score} size={80} strokeWidth={6} />
+                      <div className="flex-1 space-y-2">
+                        {analysisResult.feedback.map((f, i) => (
+                          <p key={i} className="text-sm text-muted-foreground">{f}</p>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {analysisResult.transcript && (
+                    <div className="glass-card p-3 bg-muted/30">
+                      <p className="text-xs text-muted-foreground mb-1">What you said:</p>
+                      <p className="text-sm text-foreground italic">"{analysisResult.transcript}"</p>
+                    </div>
+                  )}
                 </div>
               )}
 
