@@ -1,9 +1,23 @@
 import { useState, useRef, useCallback } from "react";
+import { detectPitch, getRMS } from "@/lib/acousticAnalyzer";
+
+interface AcousticRaw {
+  pitchHistory: number[];
+  volumeHistory: number[];
+  silenceFrames: number;
+}
+
+interface RecordingResult {
+  transcript: string;
+  durationSeconds: number;
+  audioUrl: string;
+  acousticRaw: AcousticRaw;
+}
 
 interface UseAudioRecorderReturn {
   isRecording: boolean;
   startRecording: () => Promise<void>;
-  stopRecording: () => Promise<{ transcript: string; durationSeconds: number; audioUrl: string } | null>;
+  stopRecording: () => Promise<RecordingResult | null>;
   error: string | null;
 }
 
@@ -17,6 +31,15 @@ export function useAudioRecorder(lang: string = "en-US"): UseAudioRecorderReturn
   const startTimeRef = useRef(0);
   const streamRef = useRef<MediaStream | null>(null);
 
+  // Acoustic analysis refs
+  const audioCtxRef = useRef<AudioContext | null>(null);
+  const analyserRef = useRef<AnalyserNode | null>(null);
+  const pitchHistoryRef = useRef<number[]>([]);
+  const volumeHistoryRef = useRef<number[]>([]);
+  const silenceFramesRef = useRef(0);
+  const frameCountRef = useRef(0);
+  const rafRef = useRef<number | null>(null);
+
   const startRecording = useCallback(async () => {
     setError(null);
     transcriptRef.current = "";
@@ -25,6 +48,40 @@ export function useAudioRecorder(lang: string = "en-US"): UseAudioRecorderReturn
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       streamRef.current = stream;
+
+      // Reset acoustic collections
+      pitchHistoryRef.current = [];
+      volumeHistoryRef.current = [];
+      silenceFramesRef.current = 0;
+      frameCountRef.current = 0;
+
+      // Web Audio analysis
+      const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+      audioCtxRef.current = audioCtx;
+      const analyser = audioCtx.createAnalyser();
+      analyser.fftSize = 2048;
+      analyser.smoothingTimeConstant = 0.8;
+      analyserRef.current = analyser;
+      const source = audioCtx.createMediaStreamSource(stream);
+      source.connect(analyser);
+
+      // Analysis loop
+      const loop = () => {
+        if (!analyserRef.current) return;
+        rafRef.current = requestAnimationFrame(loop);
+        frameCountRef.current++;
+        if (frameCountRef.current % 4 !== 0) return;
+
+        const buf = new Float32Array(analyser.fftSize);
+        analyser.getFloatTimeDomainData(buf);
+        const pitch = detectPitch(buf.slice(), audioCtx.sampleRate);
+        const rms = getRMS(buf);
+
+        if (pitch > 80 && pitch < 400) pitchHistoryRef.current.push(pitch);
+        volumeHistoryRef.current.push(rms);
+        if (rms < 0.008) silenceFramesRef.current++;
+      };
+      loop();
 
       const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
         ? "audio/webm;codecs=opus"
@@ -98,8 +155,19 @@ export function useAudioRecorder(lang: string = "en-US"): UseAudioRecorderReturn
     }
   }, [lang]);
 
-  const stopRecording = useCallback(async () => {
+  const stopRecording = useCallback(async (): Promise<RecordingResult | null> => {
     const durationSeconds = Math.round((Date.now() - startTimeRef.current) / 1000);
+
+    // Stop analysis loop
+    if (rafRef.current) {
+      cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
+    }
+    if (audioCtxRef.current) {
+      audioCtxRef.current.close();
+      audioCtxRef.current = null;
+    }
+    analyserRef.current = null;
 
     if (recognitionRef.current) {
       try {
@@ -138,6 +206,11 @@ export function useAudioRecorder(lang: string = "en-US"): UseAudioRecorderReturn
       transcript: transcriptRef.current.trim(),
       durationSeconds,
       audioUrl,
+      acousticRaw: {
+        pitchHistory: [...pitchHistoryRef.current],
+        volumeHistory: [...volumeHistoryRef.current],
+        silenceFrames: silenceFramesRef.current,
+      },
     };
   }, []);
 

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { Mic, Square, RotateCcw, Globe } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
@@ -10,6 +10,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/components/ui/sonner";
 import { addSession } from "@/lib/sessionStorage";
 import { cn } from "@/lib/utils";
+import { computeAcousticMetrics, type AcousticMetrics } from "@/lib/acousticAnalyzer";
 
 interface VoiceAnalysis {
   score: number;
@@ -24,9 +25,84 @@ interface VoiceAnalysis {
   transcript: string;
   wordCount: number;
   wpm: number;
+  avgPitch: number;
+  pitchRange: number;
+  pauseRatio: number;
+  pitchHistory: number[];
+  acousticSource: 'real' | 'estimated';
 }
 
 type RecordingState = "idle" | "recording" | "analyzing" | "results";
+
+function PitchContour({ pitchHistory }: { pitchHistory: number[] }) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas || pitchHistory.length < 5) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    const dpr = window.devicePixelRatio || 1;
+    const w = canvas.clientWidth;
+    const h = canvas.clientHeight;
+    canvas.width = w * dpr;
+    canvas.height = h * dpr;
+    ctx.scale(dpr, dpr);
+
+    const min = Math.min(...pitchHistory);
+    const max = Math.max(...pitchHistory);
+    const range = max - min || 1;
+    const pad = 20;
+
+    ctx.fillStyle = "hsl(220, 20%, 8%)";
+    ctx.fillRect(0, 0, w, h);
+
+    ctx.beginPath();
+    ctx.strokeStyle = "hsl(45, 90%, 55%)";
+    ctx.lineWidth = 2;
+    ctx.lineJoin = "round";
+
+    for (let i = 0; i < pitchHistory.length; i++) {
+      const x = pad + (i / (pitchHistory.length - 1)) * (w - pad * 2);
+      const y = h - pad - ((pitchHistory[i] - min) / range) * (h - pad * 2);
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+
+    // Gradient fill under line
+    ctx.lineTo(pad + (w - pad * 2), h - pad);
+    ctx.lineTo(pad, h - pad);
+    ctx.closePath();
+    const grad = ctx.createLinearGradient(0, 0, 0, h);
+    grad.addColorStop(0, "hsla(45, 90%, 55%, 0.15)");
+    grad.addColorStop(1, "hsla(45, 90%, 55%, 0)");
+    ctx.fillStyle = grad;
+    ctx.fill();
+
+    // Labels
+    ctx.fillStyle = "hsl(220, 10%, 50%)";
+    ctx.font = "10px monospace";
+    ctx.fillText(`${Math.round(max)} Hz`, 2, pad - 4);
+    ctx.fillText(`${Math.round(min)} Hz`, 2, h - pad + 12);
+  }, [pitchHistory]);
+
+  if (pitchHistory.length < 5) return null;
+
+  return (
+    <div className="glass-card p-6 space-y-3">
+      <h3 className="text-sm font-medium text-muted-foreground">
+        Pitch Contour — your voice over time
+      </h3>
+      <canvas
+        ref={canvasRef}
+        className="w-full rounded-lg"
+        style={{ height: 120 }}
+      />
+    </div>
+  );
+}
 
 export default function VoiceAnalyzerPage() {
   const [state, setState] = useState<RecordingState>("idle");
@@ -80,18 +156,43 @@ export default function VoiceAnalyzerPage() {
       return;
     }
 
+    // Compute real acoustic metrics from audio signal
+    const acoustic = computeAcousticMetrics(
+      result.acousticRaw.pitchHistory,
+      result.acousticRaw.volumeHistory,
+      result.acousticRaw.silenceFrames,
+      result.durationSeconds,
+      result.transcript
+    );
+
     try {
       const { data, error } = await supabase.functions.invoke("analyze-voice", {
-        body: { transcript: result.transcript, durationSeconds: result.durationSeconds },
+        body: {
+          transcript: result.transcript,
+          durationSeconds: result.durationSeconds,
+          acousticWpm: acoustic.wpm,
+        },
       });
 
       if (error) throw new Error(error.message || "Analysis failed");
       if (data?.error) throw new Error(data.error);
 
-      setAnalysis(data as VoiceAnalysis);
+      // Merge: override text-inferred scores with real acoustic measurements
+      const merged: VoiceAnalysis = {
+        ...data,
+        vocalVariety: acoustic.vocalVarietyScore,
+        energy: acoustic.energyScore,
+        pacing: acoustic.pacingScore,
+        avgPitch: acoustic.avgPitch,
+        pitchRange: acoustic.pitchRange,
+        pauseRatio: acoustic.pauseRatio,
+        pitchHistory: acoustic.pitchHistory,
+        acousticSource: 'real' as const,
+      };
+
+      setAnalysis(merged);
       setState("results");
 
-      // Persist session
       addSession({
         id: Date.now(),
         type: 'voice',
@@ -101,6 +202,7 @@ export default function VoiceAnalyzerPage() {
       });
     } catch (err) {
       console.error("Analysis error:", err);
+      // Fallback: show results with acoustic-only data if AI fails
       toast.error(err instanceof Error ? err.message : "Failed to analyze voice.");
       setState(audioUrl ? "results" : "idle");
     }
@@ -219,6 +321,34 @@ export default function VoiceAnalyzerPage() {
               </div>
             </div>
 
+            {/* Acoustic Signature */}
+            {analysis.acousticSource === 'real' && (
+              <div className="glass-card p-6 space-y-3">
+                <h3 className="text-sm font-medium text-muted-foreground">
+                  Acoustic Signature — measured from your audio signal
+                </h3>
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="text-center">
+                    <p className="text-2xl font-bold text-foreground">{analysis.avgPitch}</p>
+                    <p className="text-xs text-muted-foreground">Avg Pitch (Hz)</p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-2xl font-bold text-foreground">{analysis.pitchRange}</p>
+                    <p className="text-xs text-muted-foreground">Pitch Range (Hz)</p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-2xl font-bold text-foreground">{analysis.pauseRatio}%</p>
+                    <p className="text-xs text-muted-foreground">Pause Ratio</p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Pitch Contour */}
+            {analysis.pitchHistory && analysis.pitchHistory.length > 5 && (
+              <PitchContour pitchHistory={analysis.pitchHistory} />
+            )}
+
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <div className="glass-card p-6 flex flex-col items-center gap-4">
                 <h3 className="text-sm font-medium text-muted-foreground">Voice Score</h3>
@@ -226,7 +356,14 @@ export default function VoiceAnalyzerPage() {
                 <p className="text-xs text-muted-foreground text-center">Overall speaking quality</p>
               </div>
               <div className="glass-card p-6 space-y-4 md:col-span-2">
-                <h3 className="text-sm font-medium text-muted-foreground">Detailed Analysis</h3>
+                <div className="flex items-center gap-2">
+                  <h3 className="text-sm font-medium text-muted-foreground">Detailed Analysis</h3>
+                  {analysis.acousticSource === 'real' && (
+                    <span className="text-xs font-mono text-success bg-success/10 px-2 py-0.5 rounded-full">
+                      ✦ Real Audio
+                    </span>
+                  )}
+                </div>
                 <MetricBar label="Tone" value={analysis.tone} />
                 <MetricBar label="Pacing" value={analysis.pacing} />
                 <MetricBar label="Clarity" value={analysis.clarity} />
