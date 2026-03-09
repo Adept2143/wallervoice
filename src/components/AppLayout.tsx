@@ -15,15 +15,15 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen bg-background">
       {/* Top nav */}
-      <header className="fixed top-0 left-0 right-0 z-50 border-b border-border/50 bg-background/80 backdrop-blur-xl">
+      <header className="fixed top-0 left-0 right-0 z-50 backdrop-blur-xl" style={{ background: 'rgba(10, 13, 15, 0.9)', borderBottom: '1px solid rgba(232,255,71,0.08)' }}>
         <div className="mx-auto max-w-7xl flex items-center justify-between px-6 h-16">
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
               <Sparkles className="w-4 h-4 text-primary-foreground" />
             </div>
-            <div className="flex flex-col">
+            <div className="flex items-center gap-2">
               <span className="font-display font-bold text-lg text-foreground leading-tight">WallerVoice</span>
-              <span className="text-[10px] text-muted-foreground leading-tight hidden sm:block">Your Personal Speaking Coach</span>
+              <span className="px-1.5 py-0.5 rounded-full text-[10px] font-mono font-semibold bg-primary/15 text-primary border border-primary/20">v1.1.0</span>
             </div>
           </div>
           <nav className="hidden md:flex items-center gap-1">
@@ -34,8 +34,8 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                 className={cn(
                   "flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors",
                   location.pathname === item.path
-                    ? "bg-secondary text-foreground"
-                    : "text-muted-foreground hover:text-foreground hover:bg-secondary/50"
+                    ? "bg-primary/10 text-primary"
+                    : "text-muted-foreground hover:text-primary/80"
                 )}
               >
                 <item.icon className="w-4 h-4" />
@@ -43,14 +43,14 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
               </NavLink>
             ))}
           </nav>
-          <div className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center text-xs font-medium text-secondary-foreground">
+          <div className="w-8 h-8 rounded-full border border-primary/30 flex items-center justify-center text-xs font-medium text-primary">
             A
           </div>
         </div>
       </header>
 
       {/* Mobile bottom nav */}
-      <nav className="fixed bottom-0 left-0 right-0 z-50 md:hidden border-t border-border/50 bg-background/90 backdrop-blur-xl">
+      <nav className="fixed bottom-0 left-0 right-0 z-50 md:hidden backdrop-blur-xl" style={{ background: 'rgba(10, 13, 15, 0.9)', borderTop: '1px solid rgba(232,255,71,0.08)' }}>
         <div className="flex items-center justify-around py-2">
           {navItems.map((item) => (
             <NavLink
