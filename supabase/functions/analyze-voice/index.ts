@@ -12,7 +12,7 @@ serve(async (req) => {
   }
 
   try {
-    const { transcript, durationSeconds } = await req.json();
+    const { transcript, durationSeconds, acousticWpm } = await req.json();
 
     if (!transcript || transcript.trim().length === 0) {
       return new Response(
@@ -27,7 +27,7 @@ serve(async (req) => {
     }
 
     const wordCount = transcript.split(/\s+/).filter(Boolean).length;
-    const wpm = durationSeconds > 0 ? Math.round((wordCount / durationSeconds) * 60) : 0;
+    const wpm = acousticWpm ?? (durationSeconds > 0 ? Math.round((wordCount / durationSeconds) * 60) : 0);
 
     const systemPrompt = `You are an expert voice and speech coach. Analyze the following speech transcript and provide detailed feedback.
 
@@ -36,7 +36,8 @@ You MUST respond using the "analyze_voice" tool.
 Context:
 - Word count: ${wordCount}
 - Duration: ${durationSeconds} seconds
-- Words per minute: ${wpm}
+- Real WPM (from audio): ${wpm}
+- Note: Pacing score will be overridden by real acoustic measurement. Focus your pacing feedback on this real WPM value.
 
 Scoring guide (0-100):
 - tone: How pleasant and appropriate the vocal tone seems from word choices and sentence structure
